@@ -18,14 +18,18 @@ pub trait StringIndentation: ToString {
 
 impl<T: ToString> StringIndentation for T {}
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct State([Option<(char, usize)>; STATE_ARRAY_SIZE]);
 
 impl State {
+    pub fn new_empty() -> Self {
+        Self([None; STATE_ARRAY_SIZE])
+    }
+
     pub fn new(symbol: char, index: usize) -> Self {
-        let mut indices_with_symbols = [None; STATE_ARRAY_SIZE];
-        indices_with_symbols[0] = Some((symbol, index));
-        Self(indices_with_symbols)
+        let mut state = Self::new_empty();
+        state.0[0] = Some((symbol, index));
+        state
     }
 
     pub fn get_index(self) -> Vec<(char, usize)> {
@@ -54,6 +58,12 @@ impl fmt::Display for State {
             state_string += "epsilon";
         }
         write!(f, "{state_string}")
+    }
+}
+
+impl fmt::Debug for State {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{self}")
     }
 }
 

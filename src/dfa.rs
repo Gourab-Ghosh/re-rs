@@ -109,6 +109,21 @@ impl DFA {
             .retain(|state| reachable_states.contains(state));
     }
 
+    // DFS helper function for topological sorting
+    fn dfs(&self, state: State, visited: &mut HashSet<State>, stack: &mut Vec<State>) {
+        visited.insert(state);
+
+        // Iterate through adjacent states (assuming we can easily get them from the transition table)
+        let adjacent_states = self.get_adjacent_states(&state);
+        for adj_state in adjacent_states {
+            if !visited.contains(&adj_state) {
+                self.dfs(adj_state, visited, stack);
+            }
+        }
+
+        stack.push(state);
+    }
+
     // Function to perform topological sort
     pub fn get_topologically_sorted(&self) -> Vec<State> {
         let mut visited = HashSet::new();
@@ -123,21 +138,6 @@ impl DFA {
 
         stack.reverse(); // Reverse to get the correct order
         stack
-    }
-
-    // DFS helper function for topological sorting
-    fn dfs(&self, state: State, visited: &mut HashSet<State>, stack: &mut Vec<State>) {
-        visited.insert(state);
-
-        // Iterate through adjacent states (assuming we can easily get them from the transition table)
-        let adjacent_states = self.get_adjacent_states(&state);
-        for adj_state in adjacent_states {
-            if !visited.contains(&adj_state) {
-                self.dfs(adj_state, visited, stack);
-            }
-        }
-
-        stack.push(state);
     }
 
     // Simplified function to get adjacent states from a given state
@@ -245,8 +245,8 @@ impl DFA {
             .cartesian_product(self.alphabets.iter().copied())
             .collect_vec();
         let mut actual_keys = self.transition_table.keys().copied().collect_vec();
-        expected_keys.sort();
-        actual_keys.sort();
+        expected_keys.sort_unstable();
+        actual_keys.sort_unstable();
         if expected_keys != actual_keys {
             return Err(CustomError::InvalidDFAKeys);
         }
@@ -582,12 +582,12 @@ impl fmt::Display for DFA {
             transition_table.push_str(&separator);
         }
         write!(
-            f, "States: [{}]\nAlphabets: [{}]\nStart State: {}\nFinal States: [{}]\nTrapped States: [{}]\n\nTransition Table:\n\n{}",
-            self.states.iter().sorted().map(|state| state.to_string()).join(", "),
-            self.alphabets.iter().sorted().join(", "),
+            f, "States: {{{}}}\nAlphabets: {{{}}}\nStart State: {}\nFinal States: {{{}}}\nTrapped States: {{{}}}\n\nTransition Table:\n\n{}",
+            self.states.iter().sorted_unstable().map(|state| state.to_string()).join(", "),
+            self.alphabets.iter().sorted_unstable().join(", "),
             self.start_state,
-            self.final_states.iter().sorted().map(|state| state.to_string()).join(", "),
-            self.trapped_states.iter().sorted().map(|state| state.to_string()).join(", "),
+            self.final_states.iter().sorted_unstable().map(|state| state.to_string()).join(", "),
+            self.trapped_states.iter().sorted_unstable().map(|state| state.to_string()).join(", "),
             transition_table,
         )
     }

@@ -236,6 +236,60 @@ fn test4() -> Result<(), CustomError> {
     Ok(())
 }
 
+fn test5() -> Result<(), CustomError> {
+    let state0 = State::new('q', 0);
+    let state1 = State::new('q', 1);
+    let state2 = State::new('q', 2);
+    let state3 = State::new('q', 3);
+    let nfa = EpsilonNFA::new(
+        HashSet::from([state0, state1, state2, state3]),
+        HashSet::from([Some('a'), Some('b')]),
+        HashMap::from([
+            ((state0, Some('a')), HashSet::from([state1, state3])),
+            ((state1, Some('a')), HashSet::from([state1, state2])),
+            ((state1, Some('b')), HashSet::from([state1])),
+        ]),
+        HashSet::from([state0]),
+        HashSet::from([state2, state3]),
+    )?;
+
+    let dfa = nfa.to_dfa();
+    println!("{}", dfa);
+
+    Ok(())
+}
+
+fn test6() -> Result<(), CustomError> {
+    let state0 = State::new('q', 0);
+    let state1 = State::new('q', 1);
+    let state2 = State::new('q', 2);
+    let state3 = State::new('q', 3);
+    let mut nfa = EpsilonNFA::new(
+        HashSet::from([state0, state1, state2, state3]),
+        HashSet::from([Some('a'), Some('b')]),
+        HashMap::from([
+            ((state0, Some('a')), HashSet::from([state1, state3])),
+            ((state1, Some('a')), HashSet::from([state1, state2])),
+            ((state1, Some('b')), HashSet::from([state1])),
+            ((state1, None), HashSet::from([state3])),
+        ]),
+        HashSet::from([state0, state1]),
+        HashSet::from([state2, state3]),
+    )?;
+
+    println!("{nfa}");
+    nfa.remove_epsilon_transitions();
+    println!("{nfa}");
+
+    let mut dfa = nfa.to_dfa();
+
+    println!("{dfa}");
+    dfa.minimize();
+    println!("{dfa}");
+
+    Ok(())
+}
+
 fn main() {
-    test3().unwrap();
+    test6().unwrap();
 }
