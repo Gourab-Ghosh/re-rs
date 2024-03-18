@@ -171,7 +171,11 @@ impl DFA {
             trapped_states: HashSet::default(),
         };
         dfa.check_validity()?;
-        dfa.update_trapped_states();
+        if AUTO_OPTIMIZE {
+            dfa.minimize();
+        } else {
+            dfa.update_trapped_states();
+        }
         Ok(dfa)
     }
 
@@ -340,6 +344,30 @@ impl DFA {
             .collect();
     }
 
+    pub fn get_states(&self) -> &HashSet<State> {
+        &self.states
+    }
+
+    pub fn get_alphabets(&self) -> &HashSet<char> {
+        &self.alphabets
+    }
+
+    pub fn get_transition_table(&self) -> &HashMap<(State, char), State> {
+        &self.transition_table
+    }
+
+    pub fn get_start_state(&self) -> &State {
+        &self.start_state
+    }
+
+    pub fn get_final_states(&self) -> &HashSet<State> {
+        &self.final_states
+    }
+
+    pub fn get_trapped_states(&self) -> &HashSet<State> {
+        &self.trapped_states
+    }
+
     pub fn add_state(&mut self, state: State) {
         self.states.insert(state);
     }
@@ -466,6 +494,7 @@ impl DFA {
         self.states = new_states;
         self.transition_table = new_transition_table;
         self.final_states = new_final_states;
+        // Always update trapped states as we assumed trapped states are updated while creating new object
         self.update_trapped_states();
         // Always rename states as we assumed states are renamed while creating the MatchIterator Method
         self.rename_states();
@@ -675,5 +704,11 @@ impl fmt::Display for DFA {
             self.trapped_states.iter().sorted_unstable().map(|state| state.to_string()).join(", "),
             transition_table,
         )
+    }
+}
+
+impl From<EpsilonNFA> for DFA {
+    fn from(value: EpsilonNFA) -> Self {
+        value.to_dfa()
     }
 }

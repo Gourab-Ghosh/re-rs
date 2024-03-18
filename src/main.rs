@@ -3,21 +3,22 @@
 // #![allow(unused)]
 
 mod constants;
-mod regex;
 mod dfa;
 mod nfa;
+mod regex;
 mod utils;
 
 use constants::*;
-use regex::*;
 use dfa::*;
 use itertools::*;
 use nfa::*;
+use regex::*;
 use std::collections::VecDeque;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::hash::Hash;
 use std::ops::Range;
+use std::str::FromStr;
 use utils::*;
 
 fn test1() -> Result<(), CustomError> {

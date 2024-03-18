@@ -93,4 +93,5 @@ pub enum CustomError {
     InvalidDFAFinalStates,
     NoDFAStartState,
     InvalidAlphabet,
+    InvalidRegex,
 }

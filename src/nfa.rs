@@ -17,13 +17,17 @@ impl EpsilonNFA {
         start_states: HashSet<State>,
         final_states: HashSet<State>,
     ) -> Result<Self, CustomError> {
-        Ok(Self {
+        let mut nfa = Ok(Self {
             states,
             alphabets,
             transition_table,
             start_states,
             final_states,
-        })
+        })?;
+        if AUTO_OPTIMIZE {
+            nfa.minimize();
+        }
+        Ok(nfa)
     }
 
     // Simplified function to get adjacent states from a given state
@@ -74,17 +78,20 @@ impl EpsilonNFA {
         stack
     }
 
-    pub fn remove_unreachable_states(&mut self) {
+    fn remove_unreachable_states_with_custom_start_states_and_transition_table(
+        &mut self,
+        start_states: &HashSet<State>,
+        transition_table: &HashMap<(State, Option<char>), HashSet<State>>,
+    ) {
         let mut reachable_states = HashSet::new();
         let mut stack = Vec::new();
-        for &state in &self.start_states {
+        for &state in start_states {
             stack.push(state);
         }
-
         while let Some(state) = stack.pop() {
             reachable_states.insert(state);
             for &alphabet in &self.alphabets {
-                if let Some(next_states) = self.transition_table.get(&(state, alphabet)) {
+                if let Some(next_states) = transition_table.get(&(state, alphabet)) {
                     for &next_state in next_states {
                         if !reachable_states.contains(&next_state) {
                             stack.push(next_state);
@@ -93,15 +100,45 @@ impl EpsilonNFA {
                 }
             }
         }
-
         self.states.retain(|state| reachable_states.contains(state));
         self.transition_table
             .retain(|(from, _), _| reachable_states.contains(from));
         self.transition_table
             .iter_mut()
             .for_each(|((_, _), to)| to.retain(|state| reachable_states.contains(state)));
+        self.start_states
+            .retain(|state| reachable_states.contains(state));
         self.final_states
             .retain(|state| reachable_states.contains(state));
+    }
+
+    pub fn remove_unreachable_states(&mut self) {
+        self.remove_unreachable_states_with_custom_start_states_and_transition_table(
+            &self.start_states.clone(),
+            &self.transition_table.clone(),
+        );
+    }
+
+    pub fn remove_trapped_states(&mut self) {
+        self.remove_unreachable_states_with_custom_start_states_and_transition_table(
+            &self.final_states.clone(),
+            &self
+                .transition_table
+                .iter()
+                .flat_map(|(&(from, alphabet), to)| {
+                    to.iter().map(move |&state| ((state, alphabet), from))
+                })
+                .fold(HashMap::new(), |mut hash_map, (key, value)| {
+                    hash_map.entry(key).or_insert(HashSet::new()).insert(value);
+                    hash_map
+                }),
+        );
+    }
+
+    pub fn minimize(&mut self) {
+        self.remove_epsilon_transitions();
+        self.remove_trapped_states();
+        self.remove_unreachable_states();
     }
 
     fn epsilon_closure(&self, state: State) -> HashSet<State> {
@@ -266,6 +303,27 @@ impl EpsilonNFA {
             dfa.minimize();
         }
         dfa
+    }
+}
+
+impl From<DFA> for EpsilonNFA {
+    fn from(value: DFA) -> Self {
+        Self::new(
+            value.get_states().clone(),
+            value
+                .get_alphabets()
+                .iter()
+                .map(|&alphabet| Some(alphabet))
+                .collect(),
+            value
+                .get_transition_table()
+                .iter()
+                .map(|(&(from, alphabet), &to)| ((from, Some(alphabet)), HashSet::from([to])))
+                .collect(),
+            HashSet::from([*value.get_start_state()]),
+            value.get_final_states().clone(),
+        )
+        .unwrap()
     }
 }
 
