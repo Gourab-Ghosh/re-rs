@@ -2,12 +2,154 @@ use super::*;
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone)]
+struct OptimizedDFA {
+    states: HashSet<usize>,
+    alphabets: HashSet<char>,
+    transition_table: HashMap<(usize, char), usize>,
+    start_state: usize,
+    current_state: usize,
+    final_states: HashSet<usize>,
+    trapped_states: HashSet<usize>,
+}
+
+impl OptimizedDFA {
+    pub fn accepts(&mut self, text: &str) -> Result<bool, CustomError> {
+        self.current_state = self.start_state;
+        for ch in text.chars() {
+            self.update_to_next_state(ch)?;
+        }
+        Ok(self.final_states.contains(&self.current_state))
+    }
+
+    pub fn update_to_next_state(&mut self, alphabet: char) -> Result<(), CustomError> {
+        // let curr_state = self.current_state;
+        self.current_state = *self
+            .transition_table
+            .get(&(self.current_state, alphabet))
+            .ok_or(CustomError::InvalidAlphabet)?;
+        // println!(
+        //     "State changed from {} to {}",
+        //     curr_state.get_index(),
+        //     self.current_state.get_index()
+        // );
+        Ok(())
+    }
+
+    pub fn find(&mut self, text: &str) -> Result<Option<Range<usize>>, CustomError> {
+        self.current_state = self.start_state;
+        let mut start = 0;
+        let mut end = 0;
+        let mut match_found = self.final_states.contains(&self.current_state);
+
+        for (i, ch) in text.char_indices() {
+            if self.trapped_states.contains(&self.current_state) {
+                self.current_state = self.start_state;
+                start = i;
+                end = i;
+                match_found = false;
+            }
+            self.update_to_next_state(ch)?;
+            if self.final_states.contains(&self.current_state) {
+                match_found = true;
+            }
+            if match_found && !self.final_states.contains(&self.current_state) {
+                break;
+            }
+            if !self.trapped_states.contains(&self.current_state) {
+                end += ch.len_utf8();
+            }
+        }
+        if match_found {
+            // println!("Matched {:?}", start..end);
+            return Ok(Some(start..end));
+        }
+        Ok(None)
+    }
+}
+
+impl From<&DFA> for OptimizedDFA {
+    fn from(value: &DFA) -> Self {
+        OptimizedDFA {
+            states: value.states.iter().copied().map_into().collect(),
+            alphabets: value.alphabets.clone(),
+            transition_table: value
+                .transition_table
+                .iter()
+                .map(|(&(from, alphabet), &to)| ((from.into(), alphabet), to.into()))
+                .collect(),
+            start_state: value.start_state.into(),
+            current_state: value.start_state.into(),
+            final_states: value.final_states.iter().copied().map_into().collect(),
+            trapped_states: value.trapped_states.iter().copied().map_into().collect(),
+        }
+    }
+}
+
+impl From<DFA> for OptimizedDFA {
+    fn from(value: DFA) -> Self {
+        (&value).into()
+    }
+}
+
+impl From<&OptimizedDFA> for DFA {
+    fn from(value: &OptimizedDFA) -> Self {
+        DFA::new(
+            value.states.iter().copied().map_into().collect(),
+            value.alphabets.clone(),
+            value
+                .transition_table
+                .iter()
+                .map(|(&(from, alphabet), &to)| ((from.into(), alphabet), to.into()))
+                .collect(),
+            value.start_state.into(),
+            value.final_states.iter().copied().map_into().collect(),
+        )
+        .unwrap()
+    }
+}
+
+impl From<OptimizedDFA> for DFA {
+    fn from(value: OptimizedDFA) -> Self {
+        (&value).into()
+    }
+}
+
+impl fmt::Display for OptimizedDFA {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", DFA::from(self))
+    }
+}
+
+pub struct MatchIterator<'a> {
+    dfa: OptimizedDFA,
+    text: &'a str,
+    start: usize,
+}
+
+impl<'a> Iterator for MatchIterator<'a> {
+    type Item = Range<usize>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start >= self.text.len() {
+            return None;
+        }
+        if let Some(mut slice_index) = self.dfa.find(&self.text[self.start..]).unwrap() {
+            slice_index.start += self.start;
+            slice_index.end += self.start;
+            self.start = slice_index.end.max(self.start + 1);
+            return Some(slice_index);
+        }
+        None
+    }
+}
+
+#[allow(clippy::upper_case_acronyms)]
+#[derive(Debug, Clone)]
 pub struct DFA {
     states: HashSet<State>,
     alphabets: HashSet<char>,
     transition_table: HashMap<(State, char), State>,
     start_state: State,
-    current_state: State,
     final_states: HashSet<State>,
     trapped_states: HashSet<State>,
 }
@@ -25,7 +167,6 @@ impl DFA {
             alphabets,
             transition_table,
             start_state,
-            current_state: start_state,
             final_states,
             trapped_states: HashSet::default(),
         };
@@ -215,26 +356,8 @@ impl DFA {
         self.start_state = state;
     }
 
-    pub fn set_current_state(&mut self, state: State) {
-        self.current_state = state;
-    }
-
     pub fn add_final_state(&mut self, state: State) {
         self.final_states.insert(state);
-    }
-
-    pub fn update_to_next_state(&mut self, alphabet: char) -> Result<(), CustomError> {
-        // let curr_state = self.current_state;
-        self.current_state = *self
-            .transition_table
-            .get(&(self.current_state, alphabet))
-            .ok_or(CustomError::InvalidAlphabet)?;
-        // println!(
-        //     "State changed from {} to {}",
-        //     curr_state.get_index(),
-        //     self.current_state.get_index()
-        // );
-        Ok(())
     }
 
     pub fn check_validity(&self) -> Result<(), CustomError> {
@@ -344,6 +467,7 @@ impl DFA {
         self.transition_table = new_transition_table;
         self.final_states = new_final_states;
         self.update_trapped_states();
+        // Always rename states as we assumed states are renamed while creating the MatchIterator Method
         self.rename_states();
     }
 
@@ -464,54 +588,15 @@ impl DFA {
         dfa_copy
     }
 
-    pub fn accepts(&mut self, text: &str) -> Result<bool, CustomError> {
-        self.current_state = self.start_state;
-        for ch in text.chars() {
-            self.update_to_next_state(ch)?;
-        }
-        Ok(self.final_states.contains(&self.current_state))
-    }
-
-    pub fn find(&mut self, text: &str) -> Result<Option<Range<usize>>, CustomError> {
-        self.current_state = self.start_state;
-        let mut start = 0;
-        let mut end = 0;
-        let mut match_found = self.final_states.contains(&self.current_state);
-
-        for (i, ch) in text.char_indices() {
-            if self.trapped_states.contains(&self.current_state) {
-                self.current_state = self.start_state;
-                start = i;
-                end = i;
-                match_found = false;
-            }
-            self.update_to_next_state(ch)?;
-            if self.final_states.contains(&self.current_state) {
-                match_found = true;
-            }
-            if match_found && !self.final_states.contains(&self.current_state) {
-                break;
-            }
-            if !self.trapped_states.contains(&self.current_state) {
-                end += ch.len_utf8();
-            }
-        }
-        if match_found {
-            // println!("Matched {:?}", start..end);
-            return Ok(Some(start..end));
-        }
-        Ok(None)
-    }
-
     pub fn find_all<'a>(
-        &'a mut self,
+        &self,
         text: &'a str,
     ) -> Result<impl Iterator<Item = (Range<usize>, &'a str)>, CustomError> {
         if text.chars().unique().collect::<HashSet<_>>() != self.alphabets {
             return Err(CustomError::InvalidAlphabet);
         }
         Ok(MatchIterator {
-            dfa: self,
+            dfa: self.get_minimized().into(),
             text,
             start: 0,
         }
@@ -590,27 +675,5 @@ impl fmt::Display for DFA {
             self.trapped_states.iter().sorted_unstable().map(|state| state.to_string()).join(", "),
             transition_table,
         )
-    }
-}
-pub struct MatchIterator<'a> {
-    dfa: &'a mut DFA,
-    text: &'a str,
-    start: usize,
-}
-
-impl<'a> Iterator for MatchIterator<'a> {
-    type Item = Range<usize>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.start >= self.text.len() {
-            return None;
-        }
-        if let Some(mut slice_index) = self.dfa.find(&self.text[self.start..]).unwrap() {
-            slice_index.start += self.start;
-            slice_index.end += self.start;
-            self.start = slice_index.end.max(self.start + 1);
-            return Some(slice_index);
-        }
-        None
     }
 }

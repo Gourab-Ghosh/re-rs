@@ -3,11 +3,13 @@
 // #![allow(unused)]
 
 mod constants;
+mod regex;
 mod dfa;
 mod nfa;
 mod utils;
 
 use constants::*;
+use regex::*;
 use dfa::*;
 use itertools::*;
 use nfa::*;
@@ -25,7 +27,7 @@ fn test1() -> Result<(), CustomError> {
     let state4 = State::new('q', 3);
 
     // ab*a
-    let mut dfa = DFA::new(
+    let dfa = DFA::new(
         HashSet::from([state1, state2, state3, state4]),
         HashSet::from_iter("ab".chars()),
         HashMap::from([
@@ -68,7 +70,7 @@ fn test2() -> Result<(), CustomError> {
     let trapped_state = State::new('q', 4);
 
     // a|ab*a
-    let mut dfa = DFA::new(
+    let dfa = DFA::new(
         HashSet::from([state1, state2, state3, state4, trapped_state]),
         HashSet::from_iter("ab".chars()),
         HashMap::from([
@@ -291,5 +293,6 @@ fn test6() -> Result<(), CustomError> {
 }
 
 fn main() {
-    test6().unwrap();
+    test3().unwrap();
+    println!("{}", (usize::MAX as f64).log2());
 }

@@ -47,6 +47,26 @@ impl State {
     }
 }
 
+impl From<State> for usize {
+    fn from(value: State) -> Self {
+        assert!(
+            value.get_index().len() < 2,
+            "Cannot convert {value} to usize"
+        );
+        value
+            .get_index()
+            .get(0)
+            .map(|(_, index)| *index)
+            .unwrap_or(usize::MAX)
+    }
+}
+
+impl From<usize> for State {
+    fn from(value: usize) -> Self {
+        Self::new('q', value)
+    }
+}
+
 impl fmt::Display for State {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut state_string = self

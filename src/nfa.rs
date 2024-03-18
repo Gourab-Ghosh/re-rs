@@ -237,7 +237,7 @@ impl EpsilonNFA {
                     .fold(State::new_empty(), |acc, state| acc.concat(state))
             })
             .collect();
-        DFA::new(
+        let mut dfa = DFA::new(
             dfa_states_combined,
             dfa_alphabets,
             dfa_transition_table
@@ -260,7 +260,12 @@ impl EpsilonNFA {
                 .sorted_unstable()
                 .fold(State::new_empty(), |acc, &state| acc.concat(state)),
             dfa_final_states,
-        ).unwrap()
+        )
+        .unwrap();
+        if AUTO_OPTIMIZE {
+            dfa.minimize();
+        }
+        dfa
     }
 }
 
@@ -304,7 +309,10 @@ impl fmt::Display for EpsilonNFA {
                     alphabet.unwrap_or('ε').center(buffer + 8),
                     format!(
                         "{{{}}}",
-                        to.iter().sorted_unstable().map(|state| state.to_string()).join(", ")
+                        to.iter()
+                            .sorted_unstable()
+                            .map(|state| state.to_string())
+                            .join(", ")
                     )
                     .center(states_max_len.max(2) + buffer),
                 )
